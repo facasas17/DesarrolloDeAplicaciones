@@ -2,6 +2,10 @@ import io
 import csv
 import json
 import socket
+import signal
+import time
+import traceback
+import sys
 
 class ReadFile:
     
@@ -46,25 +50,39 @@ class Parser:
 class Main:
 
     def __init__(self):
-        pass
+        try:
+            self.UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+        except socket.error:
+	        print ('Fallo en la creacion del socket UDP')
+	        sys.exit()
 
+    def handler(self,sig, frame):  # define the handler  
+        print("Signal Number:", sig, " Frame: ", frame)  
+        traceback.print_stack(frame)
+        self.UDPClientSocket.close()
+        sys.exit()
+    
     def main(self):
 
-        nombrecsv = ReadFile("config.txt").config()
-        #reader = {}
-        #reader = ReadFile(nombrecsv).csv()
+        # Defino el handler de SIGINT
+        signal.signal(signal.SIGINT, self.handler)
 
-        json_data = Parser(ReadFile(nombrecsv).csv()).DicToJson()
+        # Leo archivo de configuracion y csv
+        csv_dict = {}
+        nombrecsv = ReadFile("config.txt").config()
+        csv_dict = ReadFile(nombrecsv).csv()
+
+        # Parser de csv a json
+        json_data = Parser(csv_dict).DicToJson()
  
+        # Encode para enviar por socket UDP
         bytesToSend = str.encode(json_data)
-        # Create a datagram socket
+
+        # Envio datos a servidor UDP
         port = 10000
         serverAddressPort = ("localhost", port)
+        self.UDPClientSocket.sendto(bytesToSend, serverAddressPort)  
 
-        UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
-        # Send to server using created UDP socket
-        UDPClientSocket.sendto(bytesToSend, serverAddressPort)
-
-
-Main().main()
+while True:
+    Main().main()
+    time.sleep(30)
